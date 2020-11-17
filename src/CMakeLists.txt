@@ -3,9 +3,9 @@ target_link_libraries(main benchmark::benchmark)
 target_link_libraries(main arrow_shared)
 target_link_libraries(main parquet)
 
-add_executable(sorts sorts.cpp)
-target_link_libraries(sorts benchmark::benchmark)
-target_link_libraries(sorts arrow_shared)
+add_executable(try_sorts try_sorts.cpp)
+target_link_libraries(try_sorts benchmark::benchmark)
+target_link_libraries(try_sorts arrow_shared)
 
 add_executable(try_a try_a.cpp)
 add_executable(try_b try_b.cpp)

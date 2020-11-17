@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <random>
 
 #include <arrow/buffer.h>
 #include <arrow/builder.h>
@@ -42,9 +43,17 @@ private:
     };
 
 public:
-    // arrow::ArrayVector arrayVector;
+    static bool has_shown_info;
+
     std::vector<std::shared_ptr<arrow::Int32Array>> arrayVector;
     std::vector<ItemIndex> orderings;
+
+    int32_t at(size_t id) {
+        ItemIndex item_index = orderings[id];
+        return arrayVector[item_index.array_id]->GetView(item_index.id);
+    }
+
+    ItemIndex getItemIndex(size_t id) { return orderings[id]; }
 
     Sorter()
     {
@@ -53,7 +62,7 @@ public:
         pool = arrow::default_memory_pool();
     }
 
-    void prepareData()
+    void prepareData(bool withRandomization = true)
     {
         std::unique_ptr<parquet::arrow::FileReader> parquet_reader;
         std::unique_ptr<arrow::RecordBatchReader> record_batch_reader;
@@ -62,6 +71,7 @@ public:
 
         std::shared_ptr<arrow::RecordBatch> record_batch;
         size_t array_id = 0;
+        // parquet_reader->RowGroup.
 
         assert(record_batch_reader->ReadNext(&record_batch).ok());
 
@@ -74,10 +84,23 @@ public:
             for (size_t i = 0; i != array->length(); ++i)
             {
                 orderings.push_back(ItemIndex(array_id, i));
+                // orderings.reserve
+                // orderings.emplace_back(array_id,i)
+                // uses 2 seconds. TODO: how to optimize?
             }
 
             array_id += 1;
             assert(record_batch_reader->ReadNext(&record_batch).ok());
+        }
+
+        if (withRandomization) {
+            std::random_device rd;
+            std::mt19937 g(rd());
+            std::shuffle(orderings.begin(), orderings.end(), g);
+        }
+        if (!has_shown_info) {
+            print("[ " + std::to_string(orderings.size()) + " items to be sorted. ]");
+            has_shown_info = true;
         }
     }
 
@@ -108,66 +131,93 @@ public:
     }
 };
 
+bool Sorter::has_shown_info = false;
+
+void BMPrepareData(benchmark::State &state)
+{
+    Sorter sorter;
+    for (auto _ : state) { sorter.prepareData(false); }
+}
+BENCHMARK(BMPrepareData)->Unit(benchmark::kMillisecond);
+
+void BMPrepareDataWithRandomization(benchmark::State &state)
+{
+    Sorter sorter;
+    for (auto _ : state) { sorter.prepareData(true); }
+}
+BENCHMARK(BMPrepareDataWithRandomization)->Unit(benchmark::kMillisecond);
+
 void BMStdSort(benchmark::State &state)
 {
     Sorter sorter;
-    for (auto _ : state)
-    {
-        sorter.prepareData();
-        sorter.stdSort();
-    }
+     sorter.prepareData(false);
+    for (auto _ : state) { sorter.stdSort(); }
 }
-BENCHMARK(BMStdSort);
+BENCHMARK(BMStdSort)->Unit(benchmark::kMillisecond);
+
+void BMStdSortRandomized(benchmark::State &state)
+{
+    Sorter sorter;
+    sorter.prepareData(true);
+    for (auto _ : state) { sorter.stdSort(); }
+}
+BENCHMARK(BMStdSortRandomized)->Unit(benchmark::kMillisecond);
 
 void BMStdStableSort(benchmark::State &state)
 {
     Sorter sorter;
-    for (auto _ : state)
-    {
-        sorter.prepareData();
-        sorter.stdStableSort();
-    }
+    sorter.prepareData(false);
+    for (auto _ : state) { sorter.stdStableSort(); }
 }
-BENCHMARK(BMStdStableSort);
+BENCHMARK(BMStdStableSort)->Unit(benchmark::kMillisecond);
+
+void BMStdStableSortRandomized(benchmark::State &state)
+{
+    Sorter sorter;
+    sorter.prepareData(true);
+    for (auto _ : state) { sorter.stdStableSort(); }
+}
+BENCHMARK(BMStdStableSortRandomized)->Unit(benchmark::kMillisecond);
 
 void BMSkaSort(benchmark::State &state)
 {
     Sorter sorter;
-    for (auto _ : state)
-    {
-        sorter.prepareData();
-        sorter.skaSort();
-    }
+    sorter.prepareData(false);
+    for (auto _ : state) { sorter.skaSort(); }
 }
-BENCHMARK(BMSkaSort);
+BENCHMARK(BMSkaSort)->Unit(benchmark::kMillisecond);
+
+void BMSkaSortRandomized(benchmark::State &state)
+{
+    Sorter sorter;
+    sorter.prepareData(true);
+    for (auto _ : state) { sorter.skaSort(); }
+}
+BENCHMARK(BMSkaSortRandomized)->Unit(benchmark::kMillisecond);
 
 BENCHMARK_MAIN();
-
-/**
-Running /home/shelton/workspace/sorts/build/src/main
-Run on (88 X 3600 MHz CPU s)
-CPU Caches:
-  L1 Data 32 KiB (x44)
-  L1 Instruction 32 KiB (x44)
-  L2 Unified 256 KiB (x44)
-  L3 Unified 56320 KiB (x2)
-Load Average: 0.33, 0.37, 0.24
-***WARNING*** CPU scaling is enabled, the benchmark real time measurements may be noisy and will incur extra overhead.
-***WARNING*** Library was built as DEBUG. Timings may be affected.
-----------------------------------------------------------
-Benchmark                Time             CPU   Iterations
-----------------------------------------------------------
-BMStdSort       38186149909 ns   38183498563 ns            1
-BMStdStableSort 34021783775 ns   34018477126 ns            1
-BMSkaSort       8634802731 ns   8634126462 ns            1
- */
 
 // int main(int argc, char const *argv[])
 // {
 //     Sorter sorter;
 //     sorter.prepareData();
+//     sorter.skaSort();
 //     print(sorter.orderings.size());
+//     print(sorter.orderings[0].ToString());
+//     print(sorter.at(0));
+//     print(sorter.orderings[1].ToString());
+//     print(sorter.at(1));
+//     print(sorter.orderings[100].ToString());
+//     print(sorter.at(100));
+//     print(sorter.orderings[200].ToString());
+//     print(sorter.at(200));
+//     print(sorter.orderings[300].ToString());
+//     print(sorter.at(300));
+//     print(sorter.orderings[400].ToString());
+//     print(sorter.at(400));
 //     print(sorter.orderings[23418980].ToString());
+//     print(sorter.at(23418980));
 //     print(sorter.orderings[23418981].ToString());
+//     print(sorter.at(23418981));
 //     return 0;
 // }
