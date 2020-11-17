@@ -50,12 +50,11 @@ public:
   std::vector<std::shared_ptr<arrow::Int32Array>> arrayVector;
   std::vector<ItemIndex> orderings;
 
-  int32_t at(size_t id) {
-    ItemIndex item_index = orderings[id];
+  inline int32_t valueAt(ItemIndex item_index) {
     return arrayVector[item_index.array_id]->GetView(item_index.id);
   }
 
-  ItemIndex getItemIndex(size_t id) { return orderings[id]; }
+  inline int32_t valueAt(size_t id) { return valueAt(orderings[id]); }
 
   Sorter() {
     fs = arrow::fs::FileSystemFromUri(DATA_URI, &file_name).ValueOrDie();
@@ -108,23 +107,20 @@ public:
   void stdSort() {
     std::sort(orderings.begin(), orderings.end(),
               [this](ItemIndex lhs, ItemIndex rhs) {
-                return arrayVector[lhs.array_id]->GetView(lhs.id) >
-                       arrayVector[rhs.array_id]->GetView(rhs.id);
+                return valueAt(lhs) > valueAt(rhs);
               });
   }
 
   void stdStableSort() {
     std::stable_sort(orderings.begin(), orderings.end(),
                      [this](ItemIndex lhs, ItemIndex rhs) {
-                       return arrayVector[lhs.array_id]->GetView(lhs.id) >
-                              arrayVector[rhs.array_id]->GetView(rhs.id);
+                       return valueAt(lhs) > valueAt(rhs);
                      });
   }
 
   void skaSort() {
-    ska_sort(orderings.begin(), orderings.end(), [this](ItemIndex item_index) {
-      return -arrayVector[item_index.array_id]->GetView(item_index.id);
-    });
+    ska_sort(orderings.begin(), orderings.end(),
+             [this](ItemIndex item_index) { return -valueAt(item_index); });
   }
 };
 
@@ -209,20 +205,20 @@ BENCHMARK_MAIN();
 //     sorter.skaSort();
 //     print(sorter.orderings.size());
 //     print(sorter.orderings[0].ToString());
-//     print(sorter.at(0));
+//     print(sorter.valueAt(0));
 //     print(sorter.orderings[1].ToString());
-//     print(sorter.at(1));
+//     print(sorter.valueAt(1));
 //     print(sorter.orderings[100].ToString());
-//     print(sorter.at(100));
+//     print(sorter.valueAt(100));
 //     print(sorter.orderings[200].ToString());
-//     print(sorter.at(200));
+//     print(sorter.valueAt(200));
 //     print(sorter.orderings[300].ToString());
-//     print(sorter.at(300));
+//     print(sorter.valueAt(300));
 //     print(sorter.orderings[400].ToString());
-//     print(sorter.at(400));
+//     print(sorter.valueAt(400));
 //     print(sorter.orderings[23418980].ToString());
-//     print(sorter.at(23418980));
+//     print(sorter.valueAt(23418980));
 //     print(sorter.orderings[23418981].ToString());
-//     print(sorter.at(23418981));
+//     print(sorter.valueAt(23418981));
 //     return 0;
 // }
