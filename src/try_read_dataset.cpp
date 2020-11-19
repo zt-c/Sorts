@@ -1,29 +1,20 @@
-#include <algorithm>
+
 #include <iostream>
-#include <random>
+#include <numeric>
 #include <string>
 #include <vector>
 
 #include <arrow/array.h>
-#include <arrow/buffer.h>
-#include <arrow/builder.h>
 #include <arrow/filesystem/filesystem.h>
+#include <arrow/io/interfaces.h>
 #include <arrow/record_batch.h>
-#include <arrow/result.h>
-#include <arrow/status.h>
-#include <arrow/type_fwd.h>
-#include <arrow/type_traits.h>
 #include <parquet/arrow/reader.h>
-
-#include <benchmark/benchmark.h>
 
 #include "utils.h"
 
-#include "kxsort/kxsort.h"
-#include "ska_sort/ska_sort.hpp"
+const std::string DATA_URI =
+    "file:///home/shelton/data/tpcds_websales_partitioned";
 
-// const std::string TPCDS_DATA_URI =
-// "file:///home/shelton/data/tpcds_websales_sort_big.parquet";
 const std::string TPCDS_DATA_URI =
     "file:///home/shelton/data/tpcds_websales_partitioned";
 
@@ -41,7 +32,7 @@ class Sorter {
     size_t array_id, array_index;
 
     std::string ToString() {
-      char s[40];
+      char s[100];
       std::sprintf(s, "{array_id = %ld, array_index = %ld}", array_id,
                    array_index);
       return std::string(s);
@@ -80,13 +71,6 @@ class Sorter {
   void Init() {
     InitData();
     InitOrderings();
-    if (!has_shown_info_) {
-      char s[40];
-      std::sprintf(s,"[ ... sorting %ld values ... ]", orderings_[0].size());
-      // std::cout << std::string(s) << std::endl;
-      print(std::string(s));
-      has_shown_info_ = true;
-    }
   }
 
   void InitData() {
@@ -130,103 +114,23 @@ class Sorter {
         for (size_t array_index = 0;
              array_index != data_[column_id][array_id]->length();
              ++array_index) {
-          orderings_[column_id].emplace_back(
-              ValueIndex({array_id, array_index}));
+          orderings_[column_id].emplace_back(ValueIndex({array_id, array_index}));
         }
       }
     }
   }
-
-  void stdSort() {
-    std::sort(orderings_[0].begin(), orderings_[0].end(),
-              [this](ValueIndex lhs, ValueIndex rhs) {
-                return ValueAt(0, lhs) > ValueAt(0, rhs);
-              });
-  }
-
-  void stdStableSort() {
-    std::stable_sort(orderings_[0].begin(), orderings_[0].end(),
-                     [this](ValueIndex lhs, ValueIndex rhs) {
-                       return ValueAt(0, lhs) > ValueAt(0, rhs);
-                     });
-  }
-
-  void skaSort() {
-    ska_sort(
-        orderings_[0].begin(), orderings_[0].end(),
-        [this](ValueIndex value_index) { return -ValueAt(0, value_index); });
-  }
 };
 
-bool Sorter::has_shown_info_ = false;
-
-void BM_InitData(benchmark::State &state) {
-  Sorter sorter;
-  for (auto _ : state) {
-    sorter.InitData();
-  }
-}
-BENCHMARK(BM_InitData)->Unit(benchmark::kMillisecond);
-
-void BM_InitOrderings(benchmark::State &state) {
-  Sorter sorter;
-  for (auto _ : state) {
-    sorter.InitData();
-    sorter.InitOrderings();
-  }
-}
-BENCHMARK(BM_InitOrderings)->Unit(benchmark::kMillisecond);
-
-void BM_StdSort(benchmark::State &state) {
+int main(int argc, char const *argv[]) {
   Sorter sorter;
   sorter.Init();
-  for (auto _ : state) {
-    sorter.stdSort();
-  }
+  print(sorter.ValueAt(0, 0));
+  print(sorter.ValueAt(0, 1));
+  print(sorter.ValueAt(0, 2));
+  print(sorter.orderings_.size());
+  print(sorter.orderings_[0].size());
+  print(sorter.ValueAt(11,14476450));
+  print(sorter.ValueAt(11,14476451));
+  print(sorter.ValueAt(11,14476452));
+  return 0;
 }
-BENCHMARK(BM_StdSort)->Unit(benchmark::kMillisecond);
-
-void BM_StdStableSort(benchmark::State &state) {
-  Sorter sorter;
-  sorter.Init();
-  for (auto _ : state) {
-    sorter.stdStableSort();
-  }
-}
-BENCHMARK(BM_StdStableSort)->Unit(benchmark::kMillisecond);
-
-void BM_SkaSort(benchmark::State &state) {
-  Sorter sorter;
-  sorter.Init();
-  for (auto _ : state) {
-    sorter.skaSort();
-  }
-}
-BENCHMARK(BM_SkaSort)->Unit(benchmark::kMillisecond);
-
-BENCHMARK_MAIN();
-
-// int main(int argc, char const *argv[])
-// {
-//     Sorter sorter;
-//     sorter.prepareData();
-//     sorter.skaSort();
-//     print(sorter.orderings_.size());
-//     print(sorter.orderings_[0].ToString());
-//     print(sorter.valueAt(0));
-//     print(sorter.orderings_[1].ToString());
-//     print(sorter.valueAt(1));
-//     print(sorter.orderings_[100].ToString());
-//     print(sorter.valueAt(100));
-//     print(sorter.orderings_[200].ToString());
-//     print(sorter.valueAt(200));
-//     print(sorter.orderings_[300].ToString());
-//     print(sorter.valueAt(300));
-//     print(sorter.orderings_[400].ToString());
-//     print(sorter.valueAt(400));
-//     print(sorter.orderings_[23418980].ToString());
-//     print(sorter.valueAt(23418980));
-//     print(sorter.orderings_[23418981].ToString());
-//     print(sorter.valueAt(23418981));
-//     return 0;
-// }

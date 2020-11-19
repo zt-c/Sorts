@@ -72,12 +72,12 @@ int main()
     // print(num_batches, "batches.num");
 
     assert(record_batch_reader->ReadNext(&record_batch).ok());
-    std::shared_ptr<arrow::Table> table;
-    record_batch_reader->ReadAll(&table);
-    // print(table->schema());
-    print(table->schema());
-    auto cols = table->columns();
-    print(table->columns());
+    print(record_batch->schema());
+    print(record_batch->num_columns());
+    print(record_batch_reader->schema()->num_fields());
+    auto cols = record_batch->columns();
+    auto arr = cols[0];
+    print(arr->length());
 
     // print(record_batch->schema(), "record_batch.schema");
     // arrow::ArrayVector arrays = record_batch->columns();
