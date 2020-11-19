@@ -215,8 +215,8 @@ BENCHMARK(BM_InitData)->Unit(benchmark::kMillisecond);
 
 void BM_InitOrderings(benchmark::State &state) {
   Sorter sorter;
+  sorter.InitData();
   for (auto _ : state) {
-    sorter.InitData();
     sorter.InitOrderings();
   }
 }
