@@ -8,7 +8,7 @@ project(SortsBenchmark)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED true)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_CXX_FLANGS "-Wall -Wextra")
+set(CMAKE_CXX_FLANGS "-Wall -Wextra -O3")
 
 find_package(benchmark REQUIRED)
 find_package(Arrow REQUIRED)

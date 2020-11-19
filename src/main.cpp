@@ -52,14 +52,15 @@ class Sorter {
   static bool has_shown_info_;
 
   std::vector<std::vector<std::shared_ptr<arrow::Int32Array>>> data_;
-  std::vector<std::vector<ValueIndex>> orderings_;
+  std::vector<ValueIndex> orderings_;
 
-  inline int32_t ValueAt(size_t column_id, const ValueIndex &idx) {
-    return data_[column_id][idx.array_id]->GetView(idx.array_index);
+  inline int32_t ValueAt(size_t column_id, const ValueIndex &value_index) {
+    return data_[column_id][value_index.array_id]->GetView(
+        value_index.array_index);
   }
 
   inline int32_t ValueAt(size_t column_id, size_t idx) {
-    return ValueAt(column_id, orderings_[column_id][idx]);
+    return ValueAt(column_id, orderings_[idx]);
   }
 
   Sorter() {
@@ -82,8 +83,7 @@ class Sorter {
     InitOrderings();
     if (!has_shown_info_) {
       char s[40];
-      std::sprintf(s,"[ ... sorting %ld values ... ]", orderings_[0].size());
-      // std::cout << std::string(s) << std::endl;
+      std::sprintf(s, "[ data ready: %ld entries ]", orderings_.size());
       print(std::string(s));
       has_shown_info_ = true;
     }
@@ -117,35 +117,27 @@ class Sorter {
       }
     }
   }
+
   void InitOrderings() {
-    // 12 columns
-    orderings_.resize(data_.size());
+    orderings_.reserve(data_[0].size() * data_[0][0]->length());
 
-    for (size_t column_id = 0; column_id != data_.size(); ++column_id) {
-      orderings_[column_id].reserve(data_[column_id].size() *
-                                    data_[column_id][0]->length());
-
-      for (size_t array_id = 0; array_id != data_[column_id].size();
-           ++array_id) {
-        for (size_t array_index = 0;
-             array_index != data_[column_id][array_id]->length();
-             ++array_index) {
-          orderings_[column_id].emplace_back(
-              ValueIndex({array_id, array_index}));
-        }
+    for (size_t array_id = 0; array_id != data_[0].size(); ++array_id) {
+      for (size_t array_index = 0; array_index != data_[0][array_id]->length();
+           ++array_index) {
+        orderings_.emplace_back(ValueIndex({array_id, array_index}));
       }
     }
   }
 
   void stdSort() {
-    std::sort(orderings_[0].begin(), orderings_[0].end(),
+    std::sort(orderings_.begin(), orderings_.end(),
               [this](ValueIndex lhs, ValueIndex rhs) {
                 return ValueAt(0, lhs) > ValueAt(0, rhs);
               });
   }
 
   void stdStableSort() {
-    std::stable_sort(orderings_[0].begin(), orderings_[0].end(),
+    std::stable_sort(orderings_.begin(), orderings_.end(),
                      [this](ValueIndex lhs, ValueIndex rhs) {
                        return ValueAt(0, lhs) > ValueAt(0, rhs);
                      });
@@ -153,8 +145,61 @@ class Sorter {
 
   void skaSort() {
     ska_sort(
-        orderings_[0].begin(), orderings_[0].end(),
-        [this](ValueIndex value_index) { return -ValueAt(0, value_index); });
+        orderings_.begin(), orderings_.end(),
+        [this](ValueIndex value_index) { return ValueAt(0, value_index); });
+  }
+
+  void stdSort2keyV1() {
+    std::sort(orderings_.begin(), orderings_.end(),
+              [this](ValueIndex lhs, ValueIndex rhs) {
+                return (static_cast<int64_t>(ValueAt(0, lhs)) << 32) +
+                           ValueAt(1, lhs) <
+                       (static_cast<int64_t>(ValueAt(0, rhs)) << 32) +
+                           ValueAt(1, rhs);
+              });
+  }
+
+
+
+  void stdSort2keyV2() {
+    std::sort(orderings_.begin(), orderings_.end(),
+              [this](ValueIndex lhs, ValueIndex rhs) {
+                return (ValueAt(0, lhs) > ValueAt(0, rhs)) || (ValueAt(0, lhs) == ValueAt(0, rhs) && ValueAt(1, lhs) > ValueAt(1, rhs));
+              });
+  }
+
+  void stdStableSort2KeyV1() {
+    std::stable_sort(
+        orderings_.begin(), orderings_.end(),
+        [this](ValueIndex lhs, ValueIndex rhs) {
+          int64_t l_val =
+              (static_cast<int64_t>(ValueAt(0, lhs)) << 32) + ValueAt(1, lhs);
+          int64_t r_val =
+              (static_cast<int64_t>(ValueAt(0, rhs)) << 32) + ValueAt(1, rhs);
+          return l_val < r_val;
+        });
+  }
+
+  void stdStableSort2KeyV2() {
+    std::stable_sort(orderings_.begin(), orderings_.end(),
+                     [this](ValueIndex lhs, ValueIndex rhs) {
+                       if (ValueAt(0, lhs) > ValueAt(0, rhs)) {
+                         return true;
+                       } else if (ValueAt(0, lhs) == ValueAt(0, rhs) &&
+                                  ValueAt(1, lhs) > ValueAt(1, rhs)) {
+                         return true;
+                       } else {
+                         return false;
+                       }
+                     });
+  }
+
+  void skaSort2Key() {
+    ska_sort(orderings_.begin(), orderings_.end(),
+             [this](ValueIndex value_index) {
+               return (static_cast<int64_t>(ValueAt(0, value_index)) << 32) +
+                      ValueAt(1, value_index);
+             });
   }
 };
 
@@ -204,29 +249,49 @@ void BM_SkaSort(benchmark::State &state) {
 }
 BENCHMARK(BM_SkaSort)->Unit(benchmark::kMillisecond);
 
-BENCHMARK_MAIN();
+void BM_StdSort2KeyV1(benchmark::State &state) {
+  Sorter sorter;
+  sorter.Init();
+  for (auto _ : state) {
+    sorter.stdSort2keyV1();
+  }
+}
+BENCHMARK(BM_StdSort2KeyV1)->Unit(benchmark::kMillisecond);
 
-// int main(int argc, char const *argv[])
-// {
-//     Sorter sorter;
-//     sorter.prepareData();
-//     sorter.skaSort();
-//     print(sorter.orderings_.size());
-//     print(sorter.orderings_[0].ToString());
-//     print(sorter.valueAt(0));
-//     print(sorter.orderings_[1].ToString());
-//     print(sorter.valueAt(1));
-//     print(sorter.orderings_[100].ToString());
-//     print(sorter.valueAt(100));
-//     print(sorter.orderings_[200].ToString());
-//     print(sorter.valueAt(200));
-//     print(sorter.orderings_[300].ToString());
-//     print(sorter.valueAt(300));
-//     print(sorter.orderings_[400].ToString());
-//     print(sorter.valueAt(400));
-//     print(sorter.orderings_[23418980].ToString());
-//     print(sorter.valueAt(23418980));
-//     print(sorter.orderings_[23418981].ToString());
-//     print(sorter.valueAt(23418981));
-//     return 0;
-// }
+void BM_StdSort2KeyV2(benchmark::State &state) {
+  Sorter sorter;
+  sorter.Init();
+  for (auto _ : state) {
+    sorter.stdSort2keyV2();
+  }
+}
+BENCHMARK(BM_StdSort2KeyV2)->Unit(benchmark::kMillisecond);
+
+void BM_StdStableSort2KeyV1(benchmark::State &state) {
+  Sorter sorter;
+  sorter.Init();
+  for (auto _ : state) {
+    sorter.stdStableSort2KeyV1();
+  }
+}
+BENCHMARK(BM_StdStableSort2KeyV1)->Unit(benchmark::kMillisecond);
+
+void BM_StdStableSort2KeyV2(benchmark::State &state) {
+  Sorter sorter;
+  sorter.Init();
+  for (auto _ : state) {
+    sorter.stdStableSort2KeyV2();
+  }
+}
+BENCHMARK(BM_StdStableSort2KeyV2)->Unit(benchmark::kMillisecond);
+
+void BM_SkaSort2Key(benchmark::State &state) {
+  Sorter sorter;
+  sorter.Init();
+  for (auto _ : state) {
+    sorter.skaSort2Key();
+  }
+}
+BENCHMARK(BM_SkaSort2Key)->Unit(benchmark::kMillisecond);
+
+BENCHMARK_MAIN();

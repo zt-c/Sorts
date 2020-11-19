@@ -33,5 +33,9 @@ int main(int argc, char const *argv[]) {
   // v.push_back(std::vector<int>());
   print(v.size());
   print(v[0].size());
+  int32_t a = 111;
+  print(a);
+  auto b = (static_cast<int64_t>(a) << 2);
+  print(b);
   return 0;
 }

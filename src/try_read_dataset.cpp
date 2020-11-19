@@ -29,6 +29,7 @@ class Sorter {
   std::vector<std::shared_ptr<arrow::io::RandomAccessFile>> files_;
 
   struct ValueIndex {
+    // size_t array_id, array_index, column_id;
     size_t array_id, array_index;
 
     std::string ToString() {
@@ -43,14 +44,15 @@ class Sorter {
   static bool has_shown_info_;
 
   std::vector<std::vector<std::shared_ptr<arrow::Int32Array>>> data_;
-  std::vector<std::vector<ValueIndex>> orderings_;
+  std::vector<ValueIndex> orderings_;
 
-  inline int32_t ValueAt(size_t column_id, const ValueIndex &idx) {
-    return data_[column_id][idx.array_id]->GetView(idx.array_index);
+  inline int32_t ValueAt(size_t column_id, const ValueIndex &value_index) {
+    return data_[column_id][value_index.array_id]->GetView(
+        value_index.array_index);
   }
 
   inline int32_t ValueAt(size_t column_id, size_t idx) {
-    return ValueAt(column_id, orderings_[column_id][idx]);
+    return ValueAt(column_id, orderings_[idx]);
   }
 
   Sorter() {
@@ -71,6 +73,12 @@ class Sorter {
   void Init() {
     InitData();
     InitOrderings();
+    if (!has_shown_info_) {
+      char s[40];
+      std::sprintf(s, "[ ... data ready: %ld entries ... ]", orderings_.size());
+      print(std::string(s));
+      has_shown_info_ = true;
+    }
   }
 
   void InitData() {
@@ -101,21 +109,14 @@ class Sorter {
       }
     }
   }
+
   void InitOrderings() {
-    // 12 columns
-    orderings_.resize(data_.size());
+    orderings_.reserve(data_[0].size() * data_[0][0]->length());
 
-    for (size_t column_id = 0; column_id != data_.size(); ++column_id) {
-      orderings_[column_id].reserve(data_[column_id].size() *
-                                    data_[column_id][0]->length());
-
-      for (size_t array_id = 0; array_id != data_[column_id].size();
-           ++array_id) {
-        for (size_t array_index = 0;
-             array_index != data_[column_id][array_id]->length();
-             ++array_index) {
-          orderings_[column_id].emplace_back(ValueIndex({array_id, array_index}));
-        }
+    for (size_t array_id = 0; array_id != data_[0].size(); ++array_id) {
+      for (size_t array_index = 0; array_index != data_[0][array_id]->length();
+           ++array_index) {
+        orderings_.emplace_back(ValueIndex({array_id, array_index}));
       }
     }
   }
@@ -123,14 +124,19 @@ class Sorter {
 
 int main(int argc, char const *argv[]) {
   Sorter sorter;
-  sorter.Init();
-  print(sorter.ValueAt(0, 0));
-  print(sorter.ValueAt(0, 1));
-  print(sorter.ValueAt(0, 2));
+  sorter.InitData();
+  sorter.InitOrderings();
+  print(sorter.data_[0].size());
+  print(sorter.data_[0][0]->length());
   print(sorter.orderings_.size());
-  print(sorter.orderings_[0].size());
-  print(sorter.ValueAt(11,14476450));
-  print(sorter.ValueAt(11,14476451));
-  print(sorter.ValueAt(11,14476452));
   return 0;
 }
+// sorter.Init();
+// print(sorter.ValueAt(0, 0));
+// print(sorter.ValueAt(0, 1));
+// print(sorter.ValueAt(0, 2));
+// print(sorter.orderings_.size());
+// print(sorter.orderings_[0].size());
+// print(sorter.ValueAt(11,14476450));
+// print(sorter.ValueAt(11,14476451));
+// print(sorter.ValueAt(11,14476452));
