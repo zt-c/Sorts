@@ -22,14 +22,13 @@
 #include "kxsort/kxsort.h"
 #include "ska_sort/ska_sort.hpp"
 
-// const std::string TPCDS_DATA_URI =
-// "file:///home/shelton/data/tpcds_websales_sort_big.parquet";
-const std::string TPCDS_DATA_URI =
-    "file:///home/shelton/data/tpcds_websales_partitioned";
+const std::string TPCDS_DATA_URI = "file:///home/shelton/data/tpcds_websales_partitioned";
+const std::string LINEITEM_DATA_URI = "file:///mnt/s4/sort_data/lineitem";
+const std::string LINEITEM_PART_DATA_URI = "file:///mnt/s4/sort_data/lineitem_part";
 
 class Sorter {
  private:
-  const std::string DATASET_URI = TPCDS_DATA_URI;
+  const std::string DATASET_URI = LINEITEM_DATA_URI;
 
   arrow::MemoryPool *pool_;
   std::shared_ptr<arrow::fs::FileSystem> fs_;
