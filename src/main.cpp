@@ -22,6 +22,8 @@
 #include "kxsort/kxsort.h"
 #include "ska_sort/ska_sort.hpp"
 
+// #define SORT_TWO_KEY
+
 const std::string TPCDS_DATA_URI = "file:///home/shelton/data/tpcds_websales_partitioned";
 const std::string LINEITEM_DATA_URI = "file:///mnt/s4/sort_data/lineitem";
 const std::string LINEITEM_PART_DATA_URI = "file:///mnt/s4/sort_data/lineitem_part";
@@ -71,10 +73,13 @@ class Sorter {
 
     file_infos_ = fs_->GetFileInfo(dataset_dir_selector).ValueOrDie();
 
-    for (const auto &file_info : file_infos_) {
-      auto file = fs_->OpenInputFile(file_info.path()).ValueOrDie();
-      files_.push_back(file);
-    }
+    auto file = fs_->OpenInputFile(file_infos_[0].path()).ValueOrDie();
+    files_.push_back(file);
+
+    // for (const auto &file_info : file_infos_) {
+    //   auto file = fs_->OpenInputFile(file_info.path()).ValueOrDie();
+    //   files_.push_back(file);
+    // }
   }
 
   void Init() {
@@ -248,49 +253,53 @@ void BM_SkaSort(benchmark::State &state) {
 }
 BENCHMARK(BM_SkaSort)->Unit(benchmark::kMillisecond);
 
-void BM_StdSort2KeyV1(benchmark::State &state) {
-  Sorter sorter;
-  sorter.Init();
-  for (auto _ : state) {
-    sorter.stdSort2keyV1();
-  }
-}
-BENCHMARK(BM_StdSort2KeyV1)->Unit(benchmark::kMillisecond);
+// #ifdef SORT_TWO_KEY
 
-void BM_StdSort2KeyV2(benchmark::State &state) {
-  Sorter sorter;
-  sorter.Init();
-  for (auto _ : state) {
-    sorter.stdSort2keyV2();
-  }
-}
-BENCHMARK(BM_StdSort2KeyV2)->Unit(benchmark::kMillisecond);
+// void BM_StdSort2KeyV1(benchmark::State &state) {
+//   Sorter sorter;
+//   sorter.Init();
+//   for (auto _ : state) {
+//     sorter.stdSort2keyV1();
+//   }
+// }
+// BENCHMARK(BM_StdSort2KeyV1)->Unit(benchmark::kMillisecond);
 
-void BM_StdStableSort2KeyV1(benchmark::State &state) {
-  Sorter sorter;
-  sorter.Init();
-  for (auto _ : state) {
-    sorter.stdStableSort2KeyV1();
-  }
-}
-BENCHMARK(BM_StdStableSort2KeyV1)->Unit(benchmark::kMillisecond);
+// void BM_StdSort2KeyV2(benchmark::State &state) {
+//   Sorter sorter;
+//   sorter.Init();
+//   for (auto _ : state) {
+//     sorter.stdSort2keyV2();
+//   }
+// }
+// BENCHMARK(BM_StdSort2KeyV2)->Unit(benchmark::kMillisecond);
 
-void BM_StdStableSort2KeyV2(benchmark::State &state) {
-  Sorter sorter;
-  sorter.Init();
-  for (auto _ : state) {
-    sorter.stdStableSort2KeyV2();
-  }
-}
-BENCHMARK(BM_StdStableSort2KeyV2)->Unit(benchmark::kMillisecond);
+// void BM_StdStableSort2KeyV1(benchmark::State &state) {
+//   Sorter sorter;
+//   sorter.Init();
+//   for (auto _ : state) {
+//     sorter.stdStableSort2KeyV1();
+//   }
+// }
+// BENCHMARK(BM_StdStableSort2KeyV1)->Unit(benchmark::kMillisecond);
 
-void BM_SkaSort2Key(benchmark::State &state) {
-  Sorter sorter;
-  sorter.Init();
-  for (auto _ : state) {
-    sorter.skaSort2Key();
-  }
-}
-BENCHMARK(BM_SkaSort2Key)->Unit(benchmark::kMillisecond);
+// void BM_StdStableSort2KeyV2(benchmark::State &state) {
+//   Sorter sorter;
+//   sorter.Init();
+//   for (auto _ : state) {
+//     sorter.stdStableSort2KeyV2();
+//   }
+// }
+// BENCHMARK(BM_StdStableSort2KeyV2)->Unit(benchmark::kMillisecond);
+
+// void BM_SkaSort2Key(benchmark::State &state) {
+//   Sorter sorter;
+//   sorter.Init();
+//   for (auto _ : state) {
+//     sorter.skaSort2Key();
+//   }
+// }
+// BENCHMARK(BM_SkaSort2Key)->Unit(benchmark::kMillisecond);
+
+// #endif
 
 BENCHMARK_MAIN();
