@@ -36,6 +36,11 @@ void print(const std::vector<T> &v, const std::string &label = "") {
 // template <typename T, size_t N>
 template <typename T, int64_t N>
 void print(T (&arr)[N]) {
+    if (typeid(T).name() == typeid('c').name()) {
+        // c_str
+        std::cout << arr << std::endl;
+        return;
+    }
     for (auto &i : arr) {
         std::cout << i << " ";
     }

@@ -22,15 +22,17 @@
 #include "kxsort/kxsort.h"
 #include "ska_sort/ska_sort.hpp"
 
-#define SORT_TWO_KEY 0
+#define SORT_TWO_KEY false
 
-const std::string TPCDS_DATA_URI = "file:///home/shelton/data/tpcds_websales_partitioned";
 const std::string LINEITEM_DATA_URI = "file:///mnt/s4/sort_data/lineitem";
 const std::string LINEITEM_PART_DATA_URI = "file:///mnt/s4/sort_data/lineitem_part";
 
+const std::string SAMPLE_LINEITEM_DATA_URI = "file:///home/shelton/data/sort_data/lineitem";
+const std::string SAMPLE_LINEITEM_PART_DATA_URI = "file:///home/shelton/data/sort_data/lineitem_part";
+
 class Sorter {
  private:
-  const std::string DATASET_URI = LINEITEM_DATA_URI;
+  const std::string DATASET_URI = SAMPLE_LINEITEM_DATA_URI;
 
   arrow::MemoryPool *pool_;
   std::shared_ptr<arrow::fs::FileSystem> fs_;
@@ -52,15 +54,15 @@ class Sorter {
  public:
   static bool has_shown_info_;
 
-  std::vector<std::vector<std::shared_ptr<arrow::Int32Array>>> data_;
+  std::vector<std::vector<std::shared_ptr<arrow::Int64Array>>> data_;
   std::vector<ValueIndex> orderings_;
 
-  inline int32_t ValueAt(size_t column_id, const ValueIndex &value_index) {
+  inline int64_t ValueAt(size_t column_id, const ValueIndex &value_index) {
     return data_[column_id][value_index.array_id]->GetView(
         value_index.array_index);
   }
 
-  inline int32_t ValueAt(size_t column_id, size_t idx) {
+  inline int64_t ValueAt(size_t column_id, size_t idx) {
     return ValueAt(column_id, orderings_[idx]);
   }
 
@@ -73,13 +75,10 @@ class Sorter {
 
     file_infos_ = fs_->GetFileInfo(dataset_dir_selector).ValueOrDie();
 
-    auto file = fs_->OpenInputFile(file_infos_[0].path()).ValueOrDie();
-    files_.push_back(file);
-
-    // for (const auto &file_info : file_infos_) {
-    //   auto file = fs_->OpenInputFile(file_info.path()).ValueOrDie();
-    //   files_.push_back(file);
-    // }
+    for (const auto &file_info : file_infos_) {
+      auto file = fs_->OpenInputFile(file_info.path()).ValueOrDie();
+      files_.push_back(file);
+    }
   }
 
   void Init() {
@@ -94,13 +93,15 @@ class Sorter {
   }
 
   void InitData() {
-    data_.resize(12);
+    data_.resize(4);
+    // data_.resize(16);
     for (auto file : files_) {
       std::unique_ptr<parquet::arrow::FileReader> parquet_reader;
       assert(parquet::arrow::OpenFile(file, pool_, &parquet_reader).ok());
 
       std::unique_ptr<arrow::RecordBatchReader> record_batch_reader;
-      std::vector<int> column_indices = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+      // std::vector<int> column_indices = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+      std::vector<int> column_indices = {0, 1, 2, 3};
       assert(
           parquet_reader
               ->GetRecordBatchReader({0}, column_indices, &record_batch_reader)
@@ -115,7 +116,7 @@ class Sorter {
         for (size_t column_id = 0; column_id != raw_columns.size();
              ++column_id) {
           data_[column_id].emplace_back(
-              std::dynamic_pointer_cast<arrow::Int32Array>(
+              std::dynamic_pointer_cast<arrow::Int64Array>(
                   raw_columns[column_id]));
         }
       }
@@ -153,13 +154,19 @@ class Sorter {
         [this](ValueIndex value_index) { return ValueAt(0, value_index); });
   }
 
+#if SORT_TWO_KEY
+
   void stdSort2keyV1() {
     std::sort(orderings_.begin(), orderings_.end(),
               [this](ValueIndex lhs, ValueIndex rhs) {
-                return (static_cast<int64_t>(ValueAt(0, lhs)) << 32) +
+                return (static_cast<__int128_t>(ValueAt(0, lhs)) << 64) +
                            ValueAt(1, lhs) <
-                       (static_cast<int64_t>(ValueAt(0, rhs)) << 32) +
+                       (static_cast<__int128_t>(ValueAt(0, rhs)) << 64) +
                            ValueAt(1, rhs);
+                // return (static_cast<int64_t>(ValueAt(0, lhs)) << 32) +
+                //            ValueAt(1, lhs) <
+                //        (static_cast<int64_t>(ValueAt(0, rhs)) << 32) +
+                //            ValueAt(1, rhs);
               });
   }
 
@@ -176,10 +183,14 @@ class Sorter {
     std::stable_sort(
         orderings_.begin(), orderings_.end(),
         [this](ValueIndex lhs, ValueIndex rhs) {
-          int64_t l_val =
-              (static_cast<int64_t>(ValueAt(0, lhs)) << 32) + ValueAt(1, lhs);
-          int64_t r_val =
-              (static_cast<int64_t>(ValueAt(0, rhs)) << 32) + ValueAt(1, rhs);
+          __int128_t l_val =
+              (static_cast<__int128_t>(ValueAt(0, lhs)) << 64) + ValueAt(1, lhs);
+          __int128_t r_val =
+              (static_cast<__int128_t>(ValueAt(0, rhs)) << 64) + ValueAt(1, rhs);
+          // int64_t l_val =
+          //     (static_cast<int64_t>(ValueAt(0, lhs)) << 32) + ValueAt(1, lhs);
+          // int64_t r_val =
+          //     (static_cast<int64_t>(ValueAt(0, rhs)) << 32) + ValueAt(1, rhs);
           return l_val < r_val;
         });
   }
@@ -201,10 +212,13 @@ class Sorter {
   void skaSort2Key() {
     ska_sort(orderings_.begin(), orderings_.end(),
              [this](ValueIndex value_index) {
-               return (static_cast<int64_t>(ValueAt(0, value_index)) << 32) +
+               return (static_cast<__int128_t>(ValueAt(0, value_index)) << 64) +
                       ValueAt(1, value_index);
+              //  return (static_cast<int64_t>(ValueAt(0, value_index)) << 32) +
+              //         ValueAt(1, value_index);
              });
   }
+#endif
 };
 
 bool Sorter::has_shown_info_ = false;
@@ -253,7 +267,8 @@ void BM_SkaSort(benchmark::State &state) {
 }
 BENCHMARK(BM_SkaSort)->Unit(benchmark::kMillisecond);
 
-#ifdef SORT_TWO_KEY
+
+#if SORT_TWO_KEY
 
 void BM_StdSort2KeyV1(benchmark::State &state) {
   Sorter sorter;
