@@ -32,7 +32,7 @@ const std::string SAMPLE_LINEITEM_PART_DATA_URI = "file:///home/shelton/data/sor
 
 class Sorter {
  private:
-  const std::string DATASET_URI = SAMPLE_LINEITEM_DATA_URI;
+  const std::string DATASET_URI = SAMPLE_LINEITEM_PART_DATA_URI;
 
   arrow::MemoryPool *pool_;
   std::shared_ptr<arrow::fs::FileSystem> fs_;
@@ -72,10 +72,12 @@ class Sorter {
 
     arrow::fs::FileSelector dataset_dir_selector;
     dataset_dir_selector.base_dir = dataset_dir_;
+    dataset_dir_selector.recursive = true;
 
     file_infos_ = fs_->GetFileInfo(dataset_dir_selector).ValueOrDie();
 
     for (const auto &file_info : file_infos_) {
+      if (file_info.IsDirectory()) continue;
       auto file = fs_->OpenInputFile(file_info.path()).ValueOrDie();
       files_.push_back(file);
     }
